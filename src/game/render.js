@@ -1,4 +1,5 @@
 import { GAME_STATES, PLAYER, WORLD } from './constants.js'
+import { drawModernCity, drawModernSilo, drawModernRocket, drawAmmoRack } from './render-details.js'
 
 const STARS = Array.from({ length: 96 }, (_, i) => ({
   x: (i * 97.3) % WORLD.width,
@@ -105,6 +106,16 @@ function isThreatened(state, defense) {
 function drawCity(ctx, city, retro, threatened, time, reduced) {
   const x = city.x
   const y = city.y
+  if (!retro) {
+    drawModernCity(ctx, city)
+    if (city.alive && threatened) {
+      const alpha = reduced ? 0.7 : 0.4 + Math.sin(time * 8) * 0.3
+      ctx.strokeStyle = `rgba(248, 113, 113, ${alpha})`
+      ctx.lineWidth = 2
+      ctx.strokeRect(x - 30, y - 43, 60, 47)
+    }
+    return
+  }
   if (!city.alive) {
     ctx.fillStyle = retro ? '#14532d' : '#334155'
     ctx.fillRect(x - 18, y - 6, 36, 6)
@@ -133,6 +144,8 @@ function drawCity(ctx, city, retro, threatened, time, reduced) {
 
 function drawSilo(ctx, silo, state, retro, threatened, time, reduced) {
   const selected = state.mode === GAME_STATES.PLAYING && state.aim?.siloId === silo.id
+  if (!retro) drawModernSilo(ctx, silo, state, selected)
+  if (retro) {
   const body = !silo.alive
     ? (retro ? '#14532d' : '#475569')
     : (retro ? '#4ade80' : '#0284c7')
@@ -147,6 +160,7 @@ function drawSilo(ctx, silo, state, retro, threatened, time, reduced) {
   ctx.beginPath()
   ctx.arc(silo.x, silo.y - 16, 7, Math.PI, 0)
   ctx.fill()
+  }
 
   if (selected) {
     ctx.strokeStyle = state.aim.hasAmmo ? '#e0f2fe' : '#fca5a5'
@@ -159,15 +173,10 @@ function drawSilo(ctx, silo, state, retro, threatened, time, reduced) {
     const alpha = reduced ? 0.7 : 0.4 + Math.sin(time * 8) * 0.3
     ctx.strokeStyle = `rgba(248, 113, 113, ${alpha})`
     ctx.lineWidth = 2
-    ctx.strokeRect(silo.x - 20, silo.y - 28, 40, 30)
+    ctx.strokeRect(silo.x - 28, silo.y - 42, 56, 46)
   }
 
-  if (!silo.alive) return
-  ctx.font = '600 13px system-ui, sans-serif'
-  ctx.textAlign = 'center'
-  ctx.fillStyle = silo.ammo === 0 ? '#f87171' : silo.ammo <= 3 ? '#fbbf24' : '#f8fafc'
-  ctx.fillText(String(silo.ammo), silo.x, silo.y + 18)
-  ctx.textAlign = 'left'
+  drawAmmoRack(ctx, silo, retro)
 }
 
 function drawDefenses(ctx, state, retro, time) {
@@ -209,9 +218,13 @@ function drawTrail(ctx, missile, color) {
   ctx.restore()
 }
 
-function drawHead(ctx, missile, color, isEnemy, time) {
+function drawHead(ctx, missile, color, isEnemy, time, retro, reduced) {
+  if (!retro) {
+    drawModernRocket(ctx, missile, color, isEnemy, time, reduced)
+    return
+  }
   if (isEnemy && missile.type === 'decoy') {
-    const pulse = 0.65 + Math.sin(time * 7) * 0.2
+    const pulse = reduced ? 0.65 : 0.65 + Math.sin(time * 7) * 0.2
     ctx.strokeStyle = color
     ctx.globalAlpha = 0.85
     ctx.lineWidth = 1.5
@@ -267,20 +280,20 @@ function drawHead(ctx, missile, color, isEnemy, time) {
   ctx.restore()
 }
 
-function drawMissiles(ctx, missiles, colorFor, isEnemy, time) {
+function drawMissiles(ctx, missiles, colorFor, isEnemy, time, retro, reduced) {
   for (const missile of missiles) {
     const color = colorFor(missile)
     drawTrail(ctx, missile, color)
-    drawHead(ctx, missile, color, isEnemy, time)
+    drawHead(ctx, missile, color, isEnemy, time, retro, reduced)
   }
 }
 
-function drawUfos(ctx, ufos, retro, time) {
+function drawUfos(ctx, ufos, retro, time, reduced) {
   const lights = ['#fb7185', '#fde68a', '#34d399', '#60a5fa', '#e879f9']
   for (const ufo of ufos || []) {
     ctx.save()
     ctx.translate(ufo.x, ufo.y)
-    const pulse = 0.55 + Math.sin(time * 8 + (ufo.spin || 0)) * 0.45
+    const pulse = reduced ? 0.55 : 0.55 + Math.sin(time * 8 + (ufo.spin || 0)) * 0.45
     if (ufo.dropsLeft > 0 && ufo.dropTimer < 0.4) {
       ctx.globalAlpha = 0.16 + pulse * 0.14
       ctx.fillStyle = retro ? '#4ade80' : '#67e8f9'
@@ -319,7 +332,7 @@ function drawUfos(ctx, ufos, retro, time) {
     ctx.fill()
     ctx.globalAlpha = 1
     for (let i = 0; i < 5; i += 1) {
-      const a = (ufo.spin || 0) + i * ((Math.PI * 2) / 5)
+      const a = (reduced ? 0 : (ufo.spin || 0)) + i * ((Math.PI * 2) / 5)
       const lx = Math.cos(a) * 24
       const ly = 5 + Math.sin(a) * 3
       ctx.fillStyle = retro ? '#4ade80' : lights[i]
@@ -547,7 +560,7 @@ function drawAttract(ctx, state) {
       drawCentered(ctx, line, 270 + i * 32, '18px system-ui, sans-serif', '#cbd5e1')
     })
   } else {
-    const blink = Math.floor(performance.now() / 420) % 2 === 0
+    const blink = state.settings.reducedMotion || Math.floor(performance.now() / 420) % 2 === 0
     drawCentered(ctx, 'NEW GAME', 230, '700 28px system-ui, sans-serif')
     drawCentered(ctx, blink ? 'PRESS START' : ' ', 290, '700 36px system-ui, sans-serif', '#fde68a')
     drawCentered(ctx, 'Click or tap the screen', 350, '20px system-ui, sans-serif', '#cbd5e1')
@@ -567,7 +580,7 @@ function drawAttract(ctx, state) {
 function drawInitials(ctx, state) {
   const letters = state.initials || ['A', 'A', 'A']
   const cursor = state.initialCursor || 0
-  const blinkOn = Math.floor(performance.now() / 280) % 2 === 0
+  const blinkOn = state.settings.reducedMotion || Math.floor(performance.now() / 280) % 2 === 0
   const board = state.leaderboard || []
   const rank = board.filter((entry) => entryScore(entry) > state.score).length + 1
   drawCard(ctx, 150, 390)
@@ -648,11 +661,14 @@ function drawHud(ctx, state) {
     const shots = state.shotsFiredThisWave
     const kills = state.enemiesDestroyedThisWave
     const perShot = shots > 0 ? (kills / shots).toFixed(1) : '—'
-    drawCard(ctx, 220, 210)
-    drawCentered(ctx, `WAVE ${state.wave} CLEAR`, 282, '700 42px system-ui, sans-serif')
-    drawCentered(ctx, `Cities saved ${state.defenses.cities.filter((c) => c.alive).length}    Peak combo x${state.peakCombo}`, 328, '18px system-ui, sans-serif', '#cbd5e1')
-    drawCentered(ctx, `Kills ${kills}    Kills/shot ${perShot}    Bonus +${state.waveBonusLast}`, 358, '18px system-ui, sans-serif', '#cbd5e1')
-    drawCentered(ctx, 'Click or Space to continue', 398, '16px system-ui, sans-serif', '#94a3b8')
+    drawCard(ctx, 205, 260)
+    drawCentered(ctx, `WAVE ${state.wave} CLEAR`, 262, '700 42px system-ui, sans-serif')
+    drawCentered(ctx, `Cities saved ${state.defenses.cities.filter((c) => c.alive).length}    Peak combo x${state.peakCombo}`, 304, '18px system-ui, sans-serif', '#cbd5e1')
+    drawCentered(ctx, `Kills ${kills}    Kills/shot ${perShot}    Bonus +${state.waveBonusLast}`, 334, '18px system-ui, sans-serif', '#cbd5e1')
+    const rockets = state.rocketBonus
+    const pulse = state.settings.reducedMotion ? 1 : 1 + 0.12 * Math.sin((rockets.elapsed / 0.25) * Math.PI)
+    drawCentered(ctx, `ROCKETS ${rockets.total - rockets.counted}  ×  ${rockets.pointsPerRocket}   |   +${rockets.counted * rockets.pointsPerRocket}`, 378, `700 ${Math.round(23 * pulse)}px system-ui, sans-serif`, '#fbbf24')
+    drawCentered(ctx, 'Click or Space to continue', 420, '16px system-ui, sans-serif', '#94a3b8')
   } else if (state.mode === GAME_STATES.GAME_OVER) {
     drawCard(ctx, 210, 220)
     drawCentered(ctx, 'GAME OVER', 272, '700 46px system-ui, sans-serif')
@@ -714,11 +730,11 @@ export function render(ctx, state) {
   drawHorizon(ctx, colorblind, retro)
   drawGround(ctx, state, colorblind, retro)
   drawDefenses(ctx, state, retro, time)
-  drawUfos(ctx, state.entities.bombers, retro, time)
+  drawUfos(ctx, state.entities.bombers, retro, time, reduced)
   const enemyTint = (missile) => (retro ? '#4ade80' : enemyColor(missile.type, colorblind))
-  drawMissiles(ctx, state.entities.enemyMissiles, enemyTint, true, time)
+  drawMissiles(ctx, state.entities.enemyMissiles, enemyTint, true, time, retro, reduced)
   const friendly = playerColor(colorblind, retro)
-  drawMissiles(ctx, state.entities.playerMissiles, () => friendly, false, time)
+  drawMissiles(ctx, state.entities.playerMissiles, () => friendly, false, time, retro, reduced)
   drawAfterimages(ctx, state.entities.afterimages)
   drawExplosions(ctx, state.entities.explosions, colorblind, retro)
   drawShockwaves(ctx, state.entities.shockwaves, retro)

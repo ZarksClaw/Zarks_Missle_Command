@@ -306,6 +306,67 @@ update(saucer, idleInput(), 1 / 60)
 check(saucer.entities.bombers.length === 1, 'saucer enters on a due wave')
 check(saucer.events.some((ev) => (ev?.type || ev) === 'ufo_arrive'), 'saucer announces itself')
 
+
+const clear = playingState()
+clear.waveMissilesRemaining = 0
+clear.defenses.silos[0].ammo = 2
+clear.defenses.silos[1].ammo = 1
+clear.defenses.silos[2].ammo = 7
+clear.defenses.silos[2].alive = false
+clear.peakCombo = 2
+update(clear, idleInput(), 1 / 60)
+check(clear.mode === 'WAVE_CLEAR' && clear.score === 1540, 'wave clear initially awards city and combo bonuses only')
+check(clear.defenses.silos[0].ammo === 2 && clear.defenses.silos[1].ammo === 1, 'unused rockets remain visible before countdown')
+update(clear, idleInput(), 0.25)
+check(clear.score === 1552 && clear.defenses.silos[0].ammo === 1, 'first rocket counts down for 12 points')
+update(clear, idleInput(), 0.25)
+check(clear.score === 1564 && clear.defenses.silos[0].ammo === 0, 'second rocket counts down sequentially')
+update(clear, idleInput(), 0.25)
+check(clear.score === 1576 && clear.defenses.silos[1].ammo === 0 && clear.waveBonusLast === 1576, 'remaining live battery rocket is counted once')
+clear.timers.waveCooldown = 0
+update(clear, idleInput(), 1 / 60)
+check(clear.wave === 2 && clear.score === 1576 && clear.defenses.silos[0].ammo === 10, 'continuing reloads without double award')
+const skip = playingState()
+skip.waveMissilesRemaining = 0
+skip.defenses.silos.forEach((s, i) => { s.ammo = i === 0 ? 3 : 0 })
+update(skip, idleInput(), 1 / 60)
+skip.timers.waveCooldown = 0
+update(skip, idleInput(), 1 / 60)
+check(skip.wave === 2 && skip.score === 1536, 'early continue awards all remaining rockets exactly once')
+const noAmmo = playingState()
+noAmmo.waveMissilesRemaining = 0
+noAmmo.defenses.silos.forEach((s) => { s.ammo = 0 })
+noAmmo.settings.reducedMotion = true
+update(noAmmo, idleInput(), 1 / 60)
+noAmmo.timers.waveCooldown = 0
+update(noAmmo, idleInput(), 1 / 60)
+check(noAmmo.score === 1500 && noAmmo.wave === 2, 'zero ammo and reduced motion progress without extra points')
+
+const reduced = playingState()
+reduced.waveMissilesRemaining = 0
+reduced.settings.reducedMotion = true
+reduced.defenses.silos.forEach((s, i) => { s.ammo = i === 0 ? 2 : 0 })
+update(reduced, idleInput(), 1 / 60)
+update(reduced, idleInput(), 0.25)
+check(reduced.score === 1512 && reduced.defenses.silos[0].ammo === 1, 'reduced motion preserves sequential scoring')
+update(reduced, idleInput(), 10)
+check(reduced.wave === 2 && reduced.score === 1524 && reduced.highScore >= reduced.score, 'large timestep settles remainder and updates high score')
+update(reduced, idleInput(), 1 / 60)
+check(reduced.score === 1524, 'subsequent wave does not award the bonus again')
+
+for (const [wave, value] of [[1, 12], [3, 12], [4, 24], [6, 24], [7, 36]]) {
+  const tier = playingState()
+  tier.wave = wave
+  tier.waveMissilesRemaining = 0
+  tier.defenses.silos.forEach((s, i) => { s.ammo = i === 0 ? 2 : 0 })
+  update(tier, idleInput(), 1 / 60)
+  update(tier, idleInput(), 0.25)
+  check(tier.score === 1500 + value && tier.rocketBonus.pointsPerRocket === value, `wave ${wave} awards ${value} per rocket`)
+  tier.timers.waveCooldown = 0
+  update(tier, idleInput(), 1 / 60)
+  check(tier.score === 1500 + 2 * value, `wave ${wave} early continue settles at tier rate`)
+}
+
 if (failures.length) {
   console.error(`${failures.length} failed`)
   process.exit(1)

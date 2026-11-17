@@ -561,22 +561,37 @@ function tickFireworks(state, dt) {
   }
 }
 
+const ROCKET_BONUS = 12
+const ROCKET_TICK = 0.25
+
+function countRocketBonus(state, all = false) {
+  const silo = state.defenses.silos.find((s) => s.alive && s.ammo > 0)
+  if (!silo) return false
+  const count = all ? silo.ammo : 1
+  silo.ammo -= count
+  state.score += count * state.rocketBonus.pointsPerRocket
+  state.waveBonusLast += count * state.rocketBonus.pointsPerRocket
+  state.rocketBonus.counted += count
+  noteHighScore(state)
+  return true
+}
+
 function beginWaveClear(state) {
   const ammoLeft = state.defenses.silos.reduce((n, s) => n + (s.alive ? Math.max(0, s.ammo) : 0), 0)
-  const bonus = aliveCities(state).length * 250 + ammoLeft * 12 + state.peakCombo * 20
+  const bonus = aliveCities(state).length * 250 + state.peakCombo * 20
+  state.rocketBonus = { total: ammoLeft, counted: 0, elapsed: 0, pointsPerRocket: ROCKET_BONUS * (1 + Math.floor((state.wave - 1) / 3)) }
   state.waveBonusLast = bonus
   state.score += bonus
   noteHighScore(state)
   state.mode = GAME_STATES.WAVE_CLEAR
   emit(state, 'wave_clear')
-  for (const silo of state.defenses.silos) {
-    if (silo.alive) silo.ammo = PLAYER.siloAmmo
-  }
   state.camera.shakeTime = 0
   state.camera.shakeMag = 0
   state.timers.firework = 0
-  state.timers.waveCooldown = 3.4
-  for (let i = 0; i < 3; i += 1) spawnFireworkBurst(state)
+  state.timers.waveCooldown = 3.4 + ammoLeft * ROCKET_TICK
+  if (!state.settings.reducedMotion) {
+    for (let i = 0; i < 3; i += 1) spawnFireworkBurst(state)
+  }
 }
 
 function endGame(state) {
@@ -651,9 +666,19 @@ export function update(state, input, dt) {
   }
 
   if (state.mode === GAME_STATES.WAVE_CLEAR) {
-    tickFireworks(state, dt)
+    if (!state.settings.reducedMotion) tickFireworks(state, dt)
+    const skip = state.timers.waveCooldown <= 0
+    state.rocketBonus.elapsed += dt
+    while (state.rocketBonus.elapsed >= ROCKET_TICK && state.rocketBonus.counted < state.rocketBonus.total) {
+      state.rocketBonus.elapsed -= ROCKET_TICK
+      if (!countRocketBonus(state)) break
+    }
     state.timers.waveCooldown -= dt
-    if (state.timers.waveCooldown <= 0) {
+    if (skip || state.timers.waveCooldown <= 0) {
+      while (countRocketBonus(state, true)) { /* settle the remainder before continuing */ }
+      for (const silo of state.defenses.silos) {
+        if (silo.alive) silo.ammo = PLAYER.siloAmmo
+      }
       state.wave += 1
       state.mode = GAME_STATES.PLAYING
       startWave(state)

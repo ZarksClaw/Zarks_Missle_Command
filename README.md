@@ -14,6 +14,10 @@ Contributions are welcome.
 | --- | --- |
 | ![Explosion intercepting incoming rockets](docs/screenshots/gameplay.png) | ![Saucer dropping rockets](docs/screenshots/saucer.png) |
 
+![Wave-clear rocket bonus tally](docs/screenshots/wave-bonus.png)
+
+Gameplay and bonus screenshots show simulated runs rendered by the game canvas.
+
 A qualifying run asks for three letters or digits, the way an old cabinet did.
 
 ![Initials entry](docs/screenshots/initials.png)
@@ -52,7 +56,7 @@ The title screen rotates through top scores, how to play, and how to start. Clic
 - From wave 2, split warheads break apart. Shooting the parent is worth more than cleaning up the pieces.
 - Fast rockets, weaving rockets, and hollow decoys each have their own sound. Decoys fizzle if you ignore them.
 - Odd waves from wave 3 send a saucer. It hums as it crosses and drops rockets.
-- Surviving cities, leftover ammo, and peak combo pay a wave bonus. Batteries reload after the wave.
+- Surviving cities and peak combo pay a wave bonus. Each unused rocket in a surviving battery counts down for 12 points in waves 1–3, increasing by 12 every three waves; continuing early awards the remainder. Batteries reload after the tally.
 - When every city is gone, a top-8 score can be saved with three alphanumeric initials. The board stays in this browser.
 
 ## Contributing
